@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>تسجيل الحضور | Attendance</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #0a0c10;
+    --surface: #111318;
+    --surface2: #1a1d24;
+    --border: #2a2d35;
+    --accent: #00d4aa;
+    --accent2: #0099ff;
+    --danger: #ff4757;
+    --warning: #ffa502;
+    --success: #2ed573;
+    --text: #e8eaf0;
+    --text-muted: #6b7280;
+    --font: 'Cairo', sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    overflow-y: auto;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background-image:
+      linear-gradient(rgba(0,212,170,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,170,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+  }
+
+  .card {
+    position: relative; z-index: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 36px 28px;
+    width: 100%;
+    max-width: 380px;
+    text-align: center;
+    box-shadow: 0 0 60px rgba(0,212,170,0.07);
+  }
+
+  /* Logo */
+  .logo {
+    width: 70px; height: 70px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 20px;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 32px; margin-bottom: 16px;
+  }
+
+  .company-name {
+    font-size: 20px; font-weight: 900;
+    margin-bottom: 4px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .system-name {
+    font-size: 13px; color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+
+  /* Clock */
+  .clock {
+    font-family: var(--mono);
+    font-size: 22px; font-weight: 700;
+    color: var(--text);
+    margin: 16px 0 4px;
+    letter-spacing: 2px;
+  }
+
+  .date {
+    font-size: 12px; color: var(--text-muted);
+    margin-bottom: 20px;
+  }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 16px 0;
+  }
+
+  .pin-label {
+    font-size: 13px; color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  /* PIN Display */
+  .pin-display {
+    font-family: var(--mono);
+    font-size: 32px; font-weight: 700;
+    letter-spacing: 14px;
+    color: var(--accent);
+    height: 60px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 18px;
+    transition: border-color 0.2s;
+    padding-right: 14px;
+  }
+
+  .pin-display.error { border-color: var(--danger); color: var(--danger); }
+  .pin-display.success { border-color: var(--success); color: var(--success); }
+
+  /* PIN Pad */
+  .pin-pad {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .pin-btn {
+    aspect-ratio: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    font-size: 22px; font-weight: 700;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.12s;
+    font-family: var(--font);
+    display: flex; align-items: center; justify-content: center;
+    user-select: none;
+  }
+
+  .pin-btn:active {
+    transform: scale(0.91);
+    background: var(--border);
+  }
+
+  .pin-btn.del {
+    color: var(--danger);
+    font-size: 20px;
+  }
+
+  .pin-btn.submit {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: #000;
+    border: none;
+    font-size: 24px;
+  }
+
+  .pin-btn.submit:active {
+    opacity: 0.85;
+    transform: scale(0.91);
+  }
+
+  /* Feedback */
+  .feedback {
+    font-size: 14px; font-weight: 700;
+    padding: 12px 16px;
+    border-radius: 12px;
+    margin-top: 4px;
+    display: none;
+    line-height: 1.5;
+  }
+
+  .feedback.success {
+    background: rgba(46,213,115,0.12);
+    border: 1px solid rgba(46,213,115,0.3);
+    color: var(--success);
+    display: block;
+  }
+
+  .feedback.error {
+    background: rgba(255,71,87,0.12);
+    border: 1px solid rgba(255,71,87,0.3);
+    color: var(--danger);
+    display: block;
+  }
+
+  .feedback.loading {
+    background: rgba(0,212,170,0.08);
+    border: 1px solid rgba(0,212,170,0.2);
+    color: var(--accent);
+    display: block;
+  }
+
+  /* Employee info (shown after success) */
+  .emp-info {
+    display: none;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px;
+    margin-top: 12px;
+    text-align: right;
+  }
+
+  .emp-info.show { display: block; }
+
+  .emp-info-name {
+    font-size: 16px; font-weight: 700;
+    margin-bottom: 2px;
+  }
+
+  .emp-info-job {
+    font-size: 12px; color: var(--text-muted);
+  }
+
+  .emp-info-time {
+    font-size: 13px; color: var(--accent);
+    font-family: var(--mono);
+    margin-top: 6px;
+  }
+
+  /* Loading spinner */
+  .spinner {
+    width: 18px; height: 18px;
+    border: 2px solid rgba(0,212,170,0.2);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    display: inline-block;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Disabled state */
+  .pin-pad.disabled .pin-btn { opacity: 0.4; pointer-events: none; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <!-- Logo & Company -->
+  <div class="logo">⚡</div>
+  <div class="company-name" id="company-name">نظام الحضور</div>
+  <div class="system-name">Attendance System</div>
+
+  <!-- Clock -->
+  <div class="clock" id="clock">00:00:00</div>
+  <div class="date" id="date">—</div>
+
+  <div class="divider"></div>
+
+  <div class="pin-label">أدخل الـ PIN بتاعك | Enter your PIN</div>
+
+  <!-- PIN Display -->
+  <div class="pin-display" id="pin-display">_ _ _ _</div>
+
+  <!-- PIN Pad -->
+  <div class="pin-pad" id="pin-pad">
+    <button class="pin-btn" onclick="pinInput('1')">1</button>
+    <button class="pin-btn" onclick="pinInput('2')">2</button>
+    <button class="pin-btn" onclick="pinInput('3')">3</button>
+    <button class="pin-btn" onclick="pinInput('4')">4</button>
+    <button class="pin-btn" onclick="pinInput('5')">5</button>
+    <button class="pin-btn" onclick="pinInput('6')">6</button>
+    <button class="pin-btn" onclick="pinInput('7')">7</button>
+    <button class="pin-btn" onclick="pinInput('8')">8</button>
+    <button class="pin-btn" onclick="pinInput('9')">9</button>
+    <button class="pin-btn del" onclick="pinDel()">⌫</button>
+    <button class="pin-btn" onclick="pinInput('0')">0</button>
+    <button class="pin-btn submit" onclick="pinSubmit()">✓</button>
+  </div>
+
+  <!-- Feedback -->
+  <div class="feedback" id="feedback"></div>
+
+  <!-- Employee Info (after success) -->
+  <div class="emp-info" id="emp-info">
+    <div class="emp-info-name" id="emp-info-name"></div>
+    <div class="emp-info-job" id="emp-info-job"></div>
+    <div class="emp-info-time" id="emp-info-time"></div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════
+// SUPABASE CONFIG
+// ادخل هنا بياناتك
+// ═══════════════════════════════
+const SUPABASE_URL = 'https://yjfekfyfkwmuigpaioyb.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_JECno0pllnSn0uQ7bXZSlQ_v3jLjkJN';
+const COMPANY_NAME = 'Premium Gang';
+
+// ═══════════════════════════════
+// INIT
+// ═══════════════════════════════
+const SB = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+document.getElementById('company-name').textContent = COMPANY_NAME;
+
+// ═══════════════════════════════
+// CLOCK
+// ═══════════════════════════════
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent =
+    now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  document.getElementById('date').textContent =
+    now.toLocaleDateString('ar-EG', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// ═══════════════════════════════
+// HASH
+// ═══════════════════════════════
+async function hashStr(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ═══════════════════════════════
+// DEVICE INFO
+// ═══════════════════════════════
+function getDeviceInfo() {
+  const ua = navigator.userAgent;
+  let device = 'Unknown';
+  if (/iPhone/.test(ua)) device = 'iPhone';
+  else if (/iPad/.test(ua)) device = 'iPad';
+  else if (/Android/.test(ua)) {
+    const m = ua.match(/Android [^;]+; ([^)]+)/);
+    device = m ? m[1].trim() : 'Android';
+  } else if (/Windows/.test(ua)) device = 'Windows PC';
+  else if (/Mac/.test(ua)) device = 'Mac';
+
+  let browser = 'Unknown';
+  if (/Chrome/.test(ua) && !/Chromium/.test(ua)) browser = 'Chrome';
+  else if (/Firefox/.test(ua)) browser = 'Firefox';
+  else if (/Safari/.test(ua) && !/Chrome/.test(ua)) browser = 'Safari';
+  else if (/Edge/.test(ua)) browser = 'Edge';
+
+  return `${device} | ${browser}`;
+}
+
+// ═══════════════════════════════
+// GPS
+// ═══════════════════════════════
+function getGPS() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) { reject(new Error('no geo')); return; }
+    navigator.geolocation.getCurrentPosition(
+      p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy }),
+      e => reject(e),
+      { timeout: 10000, maximumAge: 30000, enableHighAccuracy: true }
+    );
+  });
+}
+
+// ═══════════════════════════════
+// PIN LOGIC
+// ═══════════════════════════════
+let currentPin = '';
+let isProcessing = false;
+
+function pinInput(d) {
+  if (currentPin.length >= 4 || isProcessing) return;
+  currentPin += d;
+  updatePinDisplay();
+  if (currentPin.length === 4) setTimeout(pinSubmit, 300);
+}
+
+function pinDel() {
+  if (isProcessing) return;
+  currentPin = currentPin.slice(0, -1);
+  updatePinDisplay();
+  resetFeedback();
+}
+
+function updatePinDisplay() {
+  const filled = currentPin.split('').map(() => '●');
+  while (filled.length < 4) filled.push('_');
+  const display = document.getElementById('pin-display');
+  display.textContent = filled.join(' ');
+  display.className = 'pin-display';
+}
+
+function resetFeedback() {
+  const f = document.getElementById('feedback');
+  f.className = 'feedback';
+  f.textContent = '';
+  document.getElementById('emp-info').className = 'emp-info';
+}
+
+function setFeedback(msg, type) {
+  const f = document.getElementById('feedback');
+  f.textContent = msg;
+  f.className = 'feedback ' + type;
+}
+
+async function pinSubmit() {
+  if (currentPin.length === 0 || isProcessing) return;
+  if (currentPin.length < 4) {
+    setFeedback('❌ PIN ناقص — لازم 4 أرقام | PIN must be 4 digits', 'error');
+    return;
+  }
+
+  isProcessing = true;
+  document.getElementById('pin-pad').classList.add('disabled');
+  setFeedback('⏳ جاري التحقق... | Verifying...', 'loading');
+
+  try {
+    // 1. Find employee by PIN
+    const pinHash = await hashStr(currentPin);
+    const { data: emp, error } = await SB
+      .from('employees')
+      .select('*')
+      .eq('pin_hash', pinHash)
+      .single();
+
+    if (error || !emp) {
+      setFeedback('❌ PIN غلط، حاول تاني | Wrong PIN, try again', 'error');
+      document.getElementById('pin-display').className = 'pin-display error';
+      currentPin = '';
+      setTimeout(() => {
+        updatePinDisplay();
+        resetFeedback();
+        isProcessing = false;
+        document.getElementById('pin-pad').classList.remove('disabled');
+      }, 2000);
+      return;
+    }
+
+    // 2. Get GPS (required)
+    let gps;
+    try {
+      gps = await getGPS();
+    } catch (e) {
+      setFeedback('❌ يجب السماح بالموقع GPS لتسجيل الحضور | GPS location required', 'error');
+      currentPin = '';
+      setTimeout(() => {
+        updatePinDisplay();
+        resetFeedback();
+        isProcessing = false;
+        document.getElementById('pin-pad').classList.remove('disabled');
+      }, 3000);
+      return;
+    }
+
+    // 3. Check last attendance record today
+    const today = new Date().toISOString().split('T')[0];
+    const { data: todayLogs } = await SB
+      .from('attendance')
+      .select('*')
+      .eq('employee_id', emp.id)
+      .gte('timestamp', today + 'T00:00:00')
+      .lte('timestamp', today + 'T23:59:59')
+      .order('timestamp', { ascending: false })
+      .limit(1);
+
+    const lastLog = todayLogs && todayLogs.length > 0 ? todayLogs[0] : null;
+    const type = (!lastLog || lastLog.type === 'out') ? 'in' : 'out';
+
+    // 4. Insert attendance record
+    await SB.from('attendance').insert({
+      employee_id: emp.id,
+      type,
+      gps_lat: gps.lat,
+      gps_lng: gps.lng,
+      gps_accuracy: gps.acc,
+      device_info: getDeviceInfo(),
+    });
+
+    // 5. Log activity
+    await SB.from('activity_log').insert({
+      event_type: type,
+      employee_id: emp.id,
+      description: `${emp.name} — ${type === 'in' ? 'تسجيل حضور' : 'تسجيل انصراف'}`,
+      device_info: getDeviceInfo(),
+    });
+
+    // 6. Show success
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' });
+
+    document.getElementById('pin-display').className = 'pin-display success';
+
+    if (type === 'in') {
+      setFeedback(`✅ أهلاً ${emp.name}!\nتم تسجيل حضورك | Checked In`, 'success');
+    } else {
+      setFeedback(`👋 مع السلامة ${emp.name}!\nتم تسجيل انصرافك | Checked Out`, 'success');
+    }
+
+    // Show employee info card
+    document.getElementById('emp-info-name').textContent = emp.name;
+    document.getElementById('emp-info-job').textContent = emp.job_title || '';
+    document.getElementById('emp-info-time').textContent =
+      (type === 'in' ? '🟢 حضور | Check In: ' : '🔴 انصراف | Check Out: ') + timeStr;
+    document.getElementById('emp-info').className = 'emp-info show';
+
+    // Reset after 4 seconds
+    setTimeout(() => {
+      currentPin = '';
+      updatePinDisplay();
+      resetFeedback();
+      isProcessing = false;
+      document.getElementById('pin-pad').classList.remove('disabled');
+    }, 4000);
+
+  } catch (e) {
+    setFeedback('❌ خطأ في الاتصال، حاول تاني | Connection error', 'error');
+    currentPin = '';
+    setTimeout(() => {
+      updatePinDisplay();
+      resetFeedback();
+      isProcessing = false;
+      document.getElementById('pin-pad').classList.remove('disabled');
+    }, 2500);
+  }
+}
+</script>
+</body>
+</html>
